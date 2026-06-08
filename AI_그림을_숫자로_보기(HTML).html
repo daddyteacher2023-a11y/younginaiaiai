@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AI는 그림을 ‘숫자’로 본다 — 격자로 나눠 보기</title>
+<style>
+:root{
+  --bg:#F4F4EE;--ink:#333230;--ink2:#5d5c57;--mute:#9d9d94;
+  --sage:#8CBE80;--sage-d:#5E9C52;--mid:#4E8C5E;--forest:#21392C;
+  --card:#FFFFFF;--line:#E6E6DD;
+  --c-circle:#8CBE80;--c-tri:#4E8C5E;--c-sq:#21392C;
+  --r:18px;--font:"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100%}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);padding:clamp(14px,3vw,30px);display:flex;flex-direction:column;align-items:center}
+.wrap{width:100%;max-width:1080px}
+.eyebrow{font-size:12.5px;font-weight:700;letter-spacing:.18em;color:var(--sage-d);text-transform:uppercase}
+h1{font-size:clamp(23px,4.2vw,36px);font-weight:800;letter-spacing:-.02em;margin-top:6px;line-height:1.12}
+h1 .g{color:var(--sage)}
+.sub{margin-top:9px;color:var(--ink2);font-size:clamp(13px,2vw,15.5px);max-width:64ch;line-height:1.55}
+
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:18px;margin-top:20px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.card h2{font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--mute)}
+.card .head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+
+.canvas-shell{position:relative;width:100%;aspect-ratio:1/1;margin-top:12px;border-radius:14px;background:#fff;border:2px dashed #DADAD0;overflow:hidden;touch-action:none}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#cv{cursor:crosshair}
+#ov{pointer-events:none}
+.hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#C7C7BC;font-size:clamp(15px,2.4vw,19px);font-weight:600;pointer-events:none;text-align:center;padding:20px}
+.tools{display:flex;gap:9px;margin-top:13px;flex-wrap:wrap}
+button{font-family:inherit;font-weight:700;border:none;border-radius:11px;cursor:pointer;transition:.15s}
+.btn{padding:11px 15px;font-size:14px;background:#EDEDE5;color:var(--ink)}
+.btn:hover{background:#E4E4DA}
+.btn.primary{background:var(--forest);color:#fff}
+.btn.primary:hover{filter:brightness(1.13)}
+.seg{display:inline-flex;background:#EDEDE5;border-radius:11px;padding:3px;gap:2px}
+.seg button{padding:7px 12px;font-size:13px;background:transparent;color:var(--ink2);border-radius:8px}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.seg-label{font-size:12px;color:var(--mute);font-weight:700;margin-right:8px}
+
+/* number grid */
+.numgrid{display:grid;margin:14px auto 0;width:100%;max-width:380px;gap:2px;aspect-ratio:1/1}
+.nc{display:flex;align-items:center;justify-content:center;border-radius:3px;font-weight:700;font-variant-numeric:tabular-nums;
+  opacity:0;transform:scale(.55);transition:opacity .25s ease, transform .25s ease}
+.nc.on{opacity:1;transform:none}
+.cap{margin-top:11px;font-size:12.5px;color:var(--mute);text-align:center}
+
+/* steps */
+.steps{margin-top:22px;display:flex;flex-direction:column;gap:14px}
+.step{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;opacity:.4;transition:opacity .35s}
+.step.on{opacity:1}
+.step .t{font-weight:800;font-size:16px}
+.step .t .num{display:inline-flex;width:23px;height:23px;border-radius:50%;background:var(--sage);color:#fff;font-size:12.5px;align-items:center;justify-content:center;margin-right:9px;vertical-align:middle}
+.step .d{margin-top:5px;font-size:13.5px;color:var(--ink2);line-height:1.55}
+
+.flat{margin-top:11px;font-family:"Pretendard",monospace;font-variant-numeric:tabular-nums;line-height:1.9;font-size:13px;word-break:break-all}
+.fd{display:inline-block;width:1.45em;text-align:center;border-radius:3px;margin:1px}
+
+.tmpls{display:flex;gap:14px;margin-top:12px;flex-wrap:wrap}
+.tmpl{flex:1;min-width:130px;text-align:center}
+.tmpl .mini{display:grid;width:100%;max-width:120px;margin:0 auto;gap:1px;aspect-ratio:1/1}
+.tmpl .mc{border-radius:2px}
+.tmpl .nm{margin-top:7px;font-size:13.5px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px}
+.tmpl .sim{font-size:12.5px;color:var(--ink2);font-variant-numeric:tabular-nums}
+.shape-ico{width:14px;height:14px}
+
+.bars{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.bar-row{display:grid;grid-template-columns:74px 1fr 50px;align-items:center;gap:11px}
+.bar-row .nm{font-size:14px;font-weight:700;display:flex;align-items:center;gap:7px}
+.bar-track{height:16px;border-radius:9px;background:#EFEFE7;overflow:hidden}
+.bar-fill{height:100%;width:0;border-radius:9px;transition:width .7s cubic-bezier(.2,.7,.2,1)}
+.bar-pct{font-size:13.5px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
+.verdict{margin-top:14px;background:#F0F5EE;border:1px solid #DCE8D7;border-radius:14px;padding:14px 16px}
+.verdict .big{font-size:clamp(19px,3.2vw,25px);font-weight:800}
+.verdict .big b{color:var(--sage-d)}
+.verdict .why{margin-top:6px;font-size:13px;color:var(--ink2);line-height:1.5}
+.note{margin-top:12px;font-size:12.5px;color:var(--mute);line-height:1.55}
+
+.insight{margin-top:20px;background:var(--forest);color:#EAF0EB;border-radius:var(--r);padding:18px 20px}
+.insight .k{color:var(--sage);font-weight:800;font-size:12.5px;letter-spacing:.14em;text-transform:uppercase}
+.insight p{margin-top:8px;font-size:clamp(14px,2.2vw,16px);line-height:1.62;font-weight:600}
+.insight p .y{color:#fff}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--forest);color:#fff;padding:13px 20px;border-radius:12px;font-weight:700;font-size:14.5px;opacity:0;pointer-events:none;transition:.3s;box-shadow:0 10px 30px rgba(0,0,0,.18);z-index:9}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.foot{margin-top:22px;color:var(--mute);font-size:11.5px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">AI 리터러시 체험 · 2부</div>
+    <h1>AI는 그림을 <span class="g">‘숫자’</span>로 본다</h1>
+    <p class="sub">우리 눈에는 ‘세모’로 보이지만, AI는 그림을 작은 <b>격자(픽셀)</b>로 쪼개고 칸마다 진하기를 <b>숫자</b>로 바꿔서 봅니다. 그림이 숫자로 변하는 과정을 한 단계씩 따라가 볼게요.</p>
+  </header>
+
+  <div class="grid2">
+    <!-- draw -->
+    <section class="card">
+      <h2>① 여기에 그려 주세요</h2>
+      <div class="canvas-shell" id="shell">
+        <canvas id="cv"></canvas>
+        <canvas id="ov"></canvas>
+        <div class="hint" id="hint">동그라미·세모·네모를<br>그려 보세요 ✏️</div>
+      </div>
+      <div class="tools">
+        <button class="btn" id="clear">지우기</button>
+        <button class="btn primary" id="go">숫자로 바꾸기</button>
+      </div>
+    </section>
+
+    <!-- number grid -->
+    <section class="card">
+      <div class="head">
+        <h2>② 격자에 담긴 숫자</h2>
+        <div><span class="seg-label">격자</span>
+          <span class="seg" id="seg">
+            <button data-n="8">8×8</button>
+            <button data-n="12" class="on">12×12</button>
+            <button data-n="16">16×16</button>
+          </span>
+        </div>
+      </div>
+      <div class="numgrid" id="numgrid"></div>
+      <div class="cap" id="cap">‘숫자로 바꾸기’를 누르면 칸마다 진하기(0~9)가 채워져요.</div>
+    </section>
+  </div>
+
+  <div class="steps">
+    <div class="step" id="s1">
+      <div class="t"><span class="num">1</span>격자로 나누기</div>
+      <div class="d">그림 위에 똑같은 크기의 칸을 <b id="gridtxt">12 × 12</b>개로 나눠요. (왼쪽 그림 위에 격자가 보여요)</div>
+    </div>
+    <div class="step" id="s2">
+      <div class="t"><span class="num">2</span>칸마다 진하기를 숫자로</div>
+      <div class="d">칸이 얼마나 칠해졌는지를 <b>0(빈칸)~9(꽉 참)</b> 숫자로 적어요. → 위 오른쪽 격자가 바로 그 숫자예요.</div>
+    </div>
+    <div class="step" id="s3">
+      <div class="t"><span class="num">3</span>한 줄로 펼치기</div>
+      <div class="d">격자의 숫자를 순서대로 한 줄로 늘어놓아요. AI에게 그림은 결국 <b>숫자의 나열</b>일 뿐이에요.</div>
+      <div class="flat" id="flat"></div>
+    </div>
+    <div class="step" id="s4">
+      <div class="t"><span class="num">4</span>숫자로 알아맞히기</div>
+      <div class="d">내 숫자들을 ‘본보기’ 숫자들과 <b>칸마다 곱해서 모두 더해요(내적)</b>. 가장 비슷한 본보기가 정답 후보예요.</div>
+      <div class="tmpls" id="tmpls"></div>
+      <div class="bars">
+        <div class="bar-row"><span class="nm"><svg class="shape-ico" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="none" stroke="var(--c-circle)" stroke-width="2.4"/></svg>원</span><div class="bar-track"><div class="bar-fill" id="b-circle" style="background:var(--c-circle)"></div></div><span class="bar-pct" id="p-circle">0%</span></div>
+        <div class="bar-row"><span class="nm"><svg class="shape-ico" viewBox="0 0 20 20"><path d="M10 2 L18 17 L2 17 Z" fill="none" stroke="var(--c-tri)" stroke-width="2.4" stroke-linejoin="round"/></svg>삼각형</span><div class="bar-track"><div class="bar-fill" id="b-tri" style="background:var(--c-tri)"></div></div><span class="bar-pct" id="p-tri">0%</span></div>
+        <div class="bar-row"><span class="nm"><svg class="shape-ico" viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="1.5" fill="none" stroke="var(--c-sq)" stroke-width="2.4"/></svg>네모</span><div class="bar-track"><div class="bar-fill" id="b-sq" style="background:var(--c-sq)"></div></div><span class="bar-pct" id="p-sq">0%</span></div>
+      </div>
+      <div class="verdict">
+        <div class="big" id="verdict-big">먼저 그림을 숫자로 바꿔 주세요.</div>
+        <div class="why" id="verdict-why"></div>
+      </div>
+      <div class="note" id="note"></div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="k">그래서 중요한 점</div>
+    <p>AI는 그림의 ‘뜻’을 보는 게 아니라 <span class="y">숫자 격자</span>를 봅니다. 그래서 격자가 <span class="y">굵으면(8×8) 네모와 동그라미를 헷갈리기도</span> 하고, 같은 그림도 숫자만 비슷하면 같은 것으로 취급해요. 무엇을 숫자로 담고 무엇을 버릴지 정하는 것, 그 판단은 사람의 몫입니다.</p>
+  </div>
+  <div class="foot">2026 하이러닝 AI 서·논술형 평가 교원역량강화 연수 · 보조 체험 자료</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const cv=$("cv"),ov=$("ov"),shell=$("shell"),ctx=cv.getContext("2d"),octx=ov.getContext("2d");
+let DPR=Math.max(1,Math.min(2,window.devicePixelRatio||1));
+let pts=[],drawing=false,hasDrawn=false,N=12,lastG=null,TPL=null;
+
+function sizeCanvas(){
+  const r=shell.getBoundingClientRect();
+  [cv,ov].forEach(c=>{c.width=Math.round(r.width*DPR);c.height=Math.round(r.height*DPR);});
+  ctx.setTransform(DPR,0,0,DPR,0,0);octx.setTransform(DPR,0,0,DPR,0,0);
+  redraw();drawOverlay();
+}
+window.addEventListener("resize",sizeCanvas);
+function redraw(){
+  const r=shell.getBoundingClientRect();ctx.clearRect(0,0,r.width,r.height);
+  if(pts.length<2)return;
+  ctx.lineJoin="round";ctx.lineCap="round";ctx.strokeStyle="#333230";ctx.lineWidth=7;
+  ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
+  for(let i=1;i<pts.length;i++){const m={x:(pts[i-1].x+pts[i].x)/2,y:(pts[i-1].y+pts[i].y)/2};ctx.quadraticCurveTo(pts[i-1].x,pts[i-1].y,m.x,m.y);}
+  ctx.stroke();
+}
+let showGrid=false;
+function drawOverlay(){
+  const r=shell.getBoundingClientRect();octx.clearRect(0,0,r.width,r.height);
+  if(!showGrid)return;
+  octx.strokeStyle="rgba(94,156,82,.55)";octx.lineWidth=1;
+  for(let i=1;i<N;i++){const x=r.width*i/N,y=r.height*i/N;
+    octx.beginPath();octx.moveTo(x,0);octx.lineTo(x,r.height);octx.stroke();
+    octx.beginPath();octx.moveTo(0,y);octx.lineTo(r.width,y);octx.stroke();}
+}
+function posXY(e){const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+cv.addEventListener("pointerdown",e=>{cv.setPointerCapture(e.pointerId);if(hasDrawn){pts=[];hasDrawn=false;showGrid=false;drawOverlay();}drawing=true;pts.push(posXY(e));$("hint").style.display="none";redraw();});
+cv.addEventListener("pointermove",e=>{if(!drawing)return;pts.push(posXY(e));redraw();});
+cv.addEventListener("pointerup",()=>{drawing=false;hasDrawn=true;});
+cv.addEventListener("pointercancel",()=>{drawing=false;});
+
+/* ---------- digitization ---------- */
+function normalize(P){
+  let mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;
+  P.forEach(p=>{mnx=Math.min(mnx,p.x);mny=Math.min(mny,p.y);mxx=Math.max(mxx,p.x);mxy=Math.max(mxy,p.y);});
+  const w=mxx-mnx||1,h=mxy-mny||1,s=Math.max(w,h),pad=0.10,ox=(s-w)/2,oy=(s-h)/2;
+  return {pts:P.map(p=>({x:pad+(p.x-mnx+ox)/s*(1-2*pad),y:pad+(p.y-mny+oy)/s*(1-2*pad)})),diag:Math.hypot(w,h)};
+}
+function resample(P,n){let len=0;for(let i=1;i<P.length;i++)len+=Math.hypot(P[i].x-P[i-1].x,P[i].y-P[i-1].y);if(len===0)return P.slice(0,1);const step=len/(n-1);const o=[P[0]];let d=0,i=1,pv=P[0];while(i<P.length){const sg=Math.hypot(P[i].x-pv.x,P[i].y-pv.y);if(d+sg>=step){const t=(step-d)/sg;const np={x:pv.x+t*(P[i].x-pv.x),y:pv.y+t*(P[i].y-pv.y)};o.push(np);pv=np;d=0;if(o.length>=n)break;}else{d+=sg;pv=P[i];i++;}}while(o.length<n)o.push(P[P.length-1]);return o;}
+function rasterUnit(P,n){
+  const g=new Float64Array(n*n);const R=resample(P,1600);
+  const add=(cx,cy,v)=>{if(cx>=0&&cx<n&&cy>=0&&cy<n)g[cy*n+cx]+=v;};
+  R.forEach(p=>{const cx=Math.floor(p.x*n),cy=Math.floor(p.y*n);add(cx,cy,1);add(cx-1,cy,.4);add(cx+1,cy,.4);add(cx,cy-1,.4);add(cx,cy+1,.4);});
+  let mx=0;for(const v of g)mx=Math.max(mx,v);if(mx>0)for(let i=0;i<g.length;i++)g[i]=Math.min(1,Math.pow(g[i]/mx,0.6));
+  return g;
+}
+function rasterDrawing(P,n){const nm=normalize(P);return {g:rasterUnit(nm.pts,n),diag:nm.diag};}
+function templates(n){
+  const mk=k=>{let P=[];
+    if(k==="circle")for(let a=0;a<=360;a+=3)P.push({x:0.5+0.42*Math.cos(a*Math.PI/180),y:0.5+0.42*Math.sin(a*Math.PI/180)});
+    if(k==="tri"){const v=[{x:0.5,y:0.08},{x:0.92,y:0.9},{x:0.08,y:0.9}];for(let i=0;i<3;i++){const a=v[i],b=v[(i+1)%3];for(let t=0;t<60;t++)P.push({x:a.x+t/60*(b.x-a.x),y:a.y+t/60*(b.y-a.y)});}P.push(v[0]);}
+    if(k==="sq"){const v=[{x:0.1,y:0.1},{x:0.9,y:0.1},{x:0.9,y:0.9},{x:0.1,y:0.9}];for(let i=0;i<4;i++){const a=v[i],b=v[(i+1)%4];for(let t=0;t<60;t++)P.push({x:a.x+t/60*(b.x-a.x),y:a.y+t/60*(b.y-a.y)});}P.push(v[0]);}
+    return rasterUnit(P,n);};
+  return {circle:mk("circle"),tri:mk("tri"),sq:mk("sq")};
+}
+function cos(a,b){let d=0,na=0,nb=0;for(let i=0;i<a.length;i++){d+=a[i]*b[i];na+=a[i]*a[i];nb+=b[i]*b[i];}return d/(Math.sqrt(na*nb)+1e-9);}
+
+/* ---------- rendering ---------- */
+function shade(v){ // white -> forest
+  const a=[255,255,255],b=[33,56,44];
+  const r=Math.round(a[0]+(b[0]-a[0])*v),g=Math.round(a[1]+(b[1]-a[1])*v),bl=Math.round(a[2]+(b[2]-a[2])*v);
+  return `rgb(${r},${g},${bl})`;
+}
+function renderNumbers(g,n,animate){
+  const el=$("numgrid");el.style.gridTemplateColumns=`repeat(${n},1fr)`;el.innerHTML="";
+  const fs=n<=8?16:(n<=12?12:9);
+  const cells=[];
+  for(let i=0;i<n*n;i++){
+    const v=g[i],dig=Math.round(v*9);
+    const c=document.createElement("div");c.className="nc";
+    c.style.background=shade(v);c.style.color=v>0.55?"#fff":(v>0.1?"#56564f":"#cfcfc6");c.style.fontSize=fs+"px";
+    c.textContent=dig;
+    el.appendChild(c);cells.push(c);
+  }
+  if(!animate){cells.forEach(c=>c.classList.add("on"));return 0;}
+  const per=n<=12?42:26;
+  for(let row=0;row<n;row++)setTimeout(()=>{for(let col=0;col<n;col++)cells[row*n+col].classList.add("on");},row*per);
+  return n*per+260;
+}
+function renderMini(el,g,n){
+  el.style.gridTemplateColumns=`repeat(${n},1fr)`;el.innerHTML="";
+  for(let i=0;i<n*n;i++){const c=document.createElement("div");c.className="mc";c.style.background=shade(g[i]);el.appendChild(c);}
+}
+function renderFlat(g,n){
+  const total=n*n,show=Math.min(total,60);let h="";
+  for(let i=0;i<show;i++){const v=g[i],d=Math.round(v*9);h+=`<span class="fd" style="background:${v>0.06?shade(v):'transparent'};color:${v>0.55?'#fff':'#56564f'}">${d}</span>`;}
+  h+=` <span style="color:var(--mute)">… 총 ${n} × ${n} = ${total}개의 숫자</span>`;
+  $("flat").innerHTML=h;
+}
+const KO={circle:"원",tri:"삼각형",sq:"네모"},COL={circle:"#8CBE80",tri:"#4E8C5E",sq:"#21392C"};
+function renderClassify(g,n){
+  TPL=templates(n);
+  const sims={circle:cos(g,TPL.circle),tri:cos(g,TPL.tri),sq:cos(g,TPL.sq)};
+  const sharp=Object.fromEntries(Object.entries(sims).map(([k,v])=>[k,Math.pow(Math.max(0,v),7)]));
+  const tot=sharp.circle+sharp.tri+sharp.sq||1;
+  const prob={circle:sharp.circle/tot,tri:sharp.tri/tot,sq:sharp.sq/tot};
+  let best="circle";for(const k of["tri","sq"])if(prob[k]>prob[best])best=k;
+  // templates row
+  const order=["circle","tri","sq"];
+  $("tmpls").innerHTML=order.map(k=>`<div class="tmpl"><div class="mini" id="mini-${k}"></div>
+    <div class="nm"><span class="shape-ico" style="display:inline-block;width:12px;height:12px;border-radius:${k==='circle'?'50%':'2px'};background:${COL[k]}"></span>${KO[k]} 본보기</div>
+    <div class="sim">비슷한 정도 <b>${Math.round(sims[k]*100)}</b></div></div>`).join("");
+  order.forEach(k=>renderMini($("mini-"+k),TPL[k],n));
+  // bars
+  [["circle","b-circle","p-circle"],["tri","b-tri","p-tri"],["sq","b-sq","p-sq"]].forEach(([k,b,p])=>{
+    $(b).style.width=Math.round(prob[k]*100)+"%";$(p).textContent=Math.round(prob[k]*100)+"%";});
+  const conf=Math.round(prob[best]*100);
+  $("verdict-big").innerHTML=`이건 <b>${KO[best]}</b> 같아요! <span style="font-size:.62em;color:var(--mute);font-weight:700">(확신 ${conf}%)</span>`;
+  $("verdict-why").textContent = (n<=8 && conf<60)
+    ? "격자가 굵어서(8×8) 숫자가 엉성해요. 칸을 더 잘게 나누면 더 잘 맞혀요."
+    : `숫자 격자가 ‘${KO[best]} 본보기’의 숫자와 가장 비슷했어요.`;
+  $("note").innerHTML="계산 방법: 내 격자의 숫자와 본보기의 숫자를 <b>칸마다 곱해 모두 더한 값</b>이 클수록 비슷합니다. 곱하고 더하는 이 ‘가중합’이 인공 신경망의 가장 기본 계산이에요.";
+}
+
+/* ---------- run ---------- */
+function reveal(id,t){setTimeout(()=>$(id).classList.add("on"),t);}
+function digitize(animate){
+  if(pts.length<6||!hasDrawn){toast("먼저 도형을 그려 주세요 ✏️");return;}
+  const {g,diag}=rasterDrawing(pts,N);
+  if(diag<30){toast("조금 더 크게 그려 주세요");return;}
+  lastG=g;
+  $("gridtxt").textContent=N+" × "+N;
+  showGrid=true;drawOverlay();
+  ["s1","s2","s3","s4"].forEach(s=>$(s).classList.remove("on"));
+  reveal("s1",20);
+  reveal("s2",260);
+  const dur=renderNumbers(g,N,animate);
+  $("cap").textContent=`칸이 칠해진 만큼 0~9로 적었어요 (총 ${N*N}칸).`;
+  const afterGrid=animate?dur:60;
+  reveal("s3",260+afterGrid);
+  setTimeout(()=>renderFlat(g,N),300+afterGrid);
+  reveal("s4",560+afterGrid);
+  setTimeout(()=>renderClassify(g,N),600+afterGrid);
+}
+$("go").addEventListener("click",()=>digitize(true));
+$("clear").addEventListener("click",()=>{
+  pts=[];hasDrawn=false;showGrid=false;redraw();drawOverlay();$("hint").style.display="flex";
+  ["s1","s2","s3","s4"].forEach(s=>$(s).classList.remove("on"));
+  $("numgrid").innerHTML="";$("cap").textContent="‘숫자로 바꾸기’를 누르면 칸마다 진하기(0~9)가 채워져요.";
+  $("flat").innerHTML="";$("tmpls").innerHTML="";$("note").innerHTML="";
+  ["circle","tri","sq"].forEach(c=>{$("b-"+c).style.width="0";$("p-"+c).textContent="0%";});
+  $("verdict-big").innerHTML="먼저 그림을 숫자로 바꿔 주세요.";$("verdict-why").textContent="";
+});
+$("seg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  document.querySelectorAll("#seg button").forEach(x=>x.classList.remove("on"));b.classList.add("on");
+  N=+b.dataset.n;
+  if(hasDrawn&&lastG!==null){digitize(false);}
+});
+
+let tT;function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");clearTimeout(tT);tT=setTimeout(()=>t.classList.remove("show"),1900);}
+sizeCanvas();
+</script>
+</body>
+</html>
